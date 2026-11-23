@@ -1,0 +1,39 @@
+name: TV Hub CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request Render deployment for the tested commit
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo 'The RENDER_DEPLOY_HOOK_URL secret is missing.' >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error --output /dev/null --request POST "${DEPLOY_HOOK}&ref=${GITHUB_SHA}"
+          echo "Render deployment requested for commit ${GITHUB_SHA}."
